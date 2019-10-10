@@ -1,2 +1,5 @@
 # util
-Personal untility and snippets repo
+
+This repository contains snippets and useful code segments in
+
+* [C++](cpp)
