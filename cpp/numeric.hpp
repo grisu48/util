@@ -1,9 +1,9 @@
 /* =============================================================================
  *
- * Title:       Basic Matrix class
+ * Title:       Basic numerics class.
  * Author:      Felix Niederwanger
  * License:     MIT (http://opensource.org/licenses/MIT)
- * Description: Library, header file
+ * Description: Numerics, standalone header file
  * =============================================================================
  */
 
@@ -12,7 +12,7 @@
 
 #include <stdlib.h>
 #include <string.h>
- 
+
 namespace numeric {
 
 template <class T>
@@ -59,6 +59,10 @@ public:
 			this->n = n;
 		}
 	}
+	/** Erase the array contents, i.e. set everything to zero */
+	void clear() {
+		bzero(this->val, sizeof(T)*this->n);
+	}
 
 	const T operator[](const size_t i) const { return this->val[i]; }
 	T& operator[](const size_t i) { return this->val[i]; }
@@ -66,6 +70,12 @@ public:
 	Array<T>& operator=(const Array &src) {
 		this->resize(src.n);	// Also assigns n
 		memcpy(this->val, src.val, n*sizeof(T));
+		return *this;
+	}
+	/** Assign a constant value to the array */
+	Array<T>& operator=(const T &t) {
+		for(size_t i=0;i< this->n; i++)
+			this->val[i] = t;
 		return *this;
 	}
 
@@ -132,7 +142,16 @@ public:
 
 	size_t size(const size_t i) const { return this->dims[i]; }
 	size_t size() const { return Array<T>::size(); }
-
+	
+	
+	/** Resize the matrix and clear it's contents */
+	void resize(const size_t m, const size_t n) {
+		Array<T>::resize(m*n);
+		this->dims[0] = m;
+		this->dims[1] = n;
+		this->clear();
+	}
+	
 	const T operator()(const size_t i, const size_t j) const { return this->val[index(i,j)]; }
 	T& operator()(const size_t i, const size_t j) { return this->val[index(i,j)]; }
 
@@ -144,6 +163,8 @@ public:
 		this->dims[1] = src.dims[1];
 		return *this;
 	}
+	/** Assign a constant value to the array */
+	Array<T>& operator=(const T &t) { return Array<T>::operator=(t); }
 };
 
 template <class T>
@@ -188,6 +209,15 @@ public:
 	size_t size(const size_t i) const { return this->dims[i]; }
 	size_t size() const { return Array<T>::size(); }
 
+	/** Resize the cube and clear it's contents */
+	void resize(const size_t n1, const size_t n2, const size_t n3) {
+		Array<T>::resize(n1*n2*n3);
+		this->dims[0] = n1;
+		this->dims[1] = n2;
+		this->dims[2] = n3;
+		this->clear();
+	}
+	
 	const T operator()(const size_t i, const size_t j, const size_t k) const { return this->val[index(i,j,k)]; }
 	T& operator()(const size_t i, const size_t j, const size_t k) { return this->val[index(i,j,k)]; }
 
@@ -200,6 +230,74 @@ public:
 		this->dims[2] = src.dims[2];
 		return *this;
 	}
+	/** Assign a constant value to the array */
+	Array<T>& operator=(const T &t) { return Array<T>::operator=(t); }
+};
+
+template <class T>
+class Tesseract : public Array<T> {
+protected :
+	size_t dims[4];
+	size_t index(const size_t x1, const size_t x2, const size_t x3, const size_t x4) const {
+		return x1+x2*dims[0]+x3*dims[0]*dims[1]+x4*dims[0]*dims[1]*dims[2];
+	}
+public:
+	/** Initialize a new empty matrix */
+	Tesseract() : Array<T>(0) {
+		for(int i=0;i<4;i++)
+			dims[i] = 0;
+	}
+	/** Initialize a new (m x n x o) cubus */
+	Tesseract(const size_t n1, const size_t n2, const size_t n3, const size_t n4) : Array<T>(n1*n2*n3*n4) {
+		dims[0] = n1;
+		dims[1] = n2;
+		dims[2] = n3;
+		dims[3] = n4;
+	}
+	Tesseract(const Tesseract &src) {
+		this->n = src.n;
+		this->val = (T*)malloc(src.n*sizeof(T));
+		memcpy(this->val, src.val, src.n*sizeof(T));
+		for(int i=0;i<4;i++)
+			this->dims[i] = src.dims[i];
+	}
+	Tesseract(Tesseract &&src) {
+		this->n = src.n;
+		this->val = src.val;
+		for(int i=0;i<4;i++) {
+			this->dims[i] = src.dims[i];
+			src.dims[i] = 0;
+		}
+		src.n = 0;
+		src.val = NULL;
+	}
+
+	size_t size(const size_t i) const { return this->dims[i]; }
+	size_t size() const { return Array<T>::size(); }
+
+	/** Resize the tesseract and clear it's contents */
+	void resize(const size_t n1, const size_t n2, const size_t n3, const size_t n4) {
+		Array<T>::resize(n1*n2*n3*n4);
+		this->dims[0] = n1;
+		this->dims[1] = n2;
+		this->dims[2] = n3;
+		this->dims[3] = n4;
+		this->clear();
+	}
+	
+	const T operator()(const size_t x1, const size_t x2, const size_t x3, const size_t x4) const { return this->val[index(x1,x2,x3,x4)]; }
+	T& operator()(const size_t x1, const size_t x2, const size_t x3, const size_t x4) { return this->val[index(x1,x2,x3,x4)]; }
+
+	/** Assign contents from another matrix to this one */
+	Tesseract<T>& operator=(const Tesseract<T> &src) {
+		this->resize(src.n);	// Also assigns n
+		memcpy(this->val, src.val, src.n*sizeof(T));
+		for(int i=0;i<4;i++)
+			this->dims[i] = src.dims[i];
+		return *this;
+	}
+	/** Assign a constant value to the array */
+	Array<T>& operator=(const T &t) { return Array<T>::operator=(t); }
 };
 
 }
