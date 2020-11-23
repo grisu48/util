@@ -1,0 +1,126 @@
+#!/bin/bash
+# Summary: Bash script to update a virtual machine and create a new snapshot for the VM
+# Steps:
+#   * Restore last snapshot for machine
+#   * Boot the machine
+#   * Install updated
+#   * Reboot & smoke test
+#   * Shutdown the machine
+#   * Create new snapshot
+#   * Delete old snapshots, keep only the last 3
+
+
+# Number of snapshots to keep
+SNAPSHOTS=3
+TIMEOUT=300
+
+# get the last snapshot of the given domain
+function last_snapshot {
+	domain="$1"
+	virsh snapshot-list --name --domain "$domain" | grep "updated-" | sort | tail -n 1
+}
+
+# wait until the given machine is booted (i.e. when ssh becomes available)
+function boot_await {
+	domain="$1"
+	for i in `seq 1 $TIMEOUT`; do
+		if ping -c 1 "$domain" >/dev/null; then
+			# ssh also needs to be up
+			if nmap -Pn -p ssh "$domain" | grep ssh | grep open >/dev/null; then return 0; fi
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+# wait until the given machine is shut down
+function await_shutdown {
+	domain="$1"
+	for i in `seq 1 $TIMEOUT`; do
+		if ! virsh list --name | grep "$domain" >/dev/null; then return 0; fi
+		sleep 1
+	done
+	return 1
+}
+
+# remove old snapshots of the given machine. Keep $SNAPSHOTS snapshots
+function remove_old_snapshots {
+	domain="$1"
+	snapshots=`virsh snapshot-list "$domain" --name | grep "updated-" | sort | head -n -$SNAPSHOTS`
+	for snapshot in $snapshots
+	do
+		virsh snapshot-delete --domain "$domain" --snapshotname "$snapshot"
+	done
+}
+
+# Cleanup routine at the end of the script
+# Meant as cleanup in error cases
+function cleanup() {
+	set +e
+	# ensure VM is powered off
+	if virsh list --name | grep "$domain"; then virsh destroy "$domain" || true; fi
+}
+
+
+
+#### Main script routine ######################################################
+
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $0 DOMAIN"
+fi
+
+set -e
+domain="$1"
+if [[ $# -gt 1 ]]; then
+	update_cmd="$2"
+else
+	update_cmd="zypper ref && zypper up -y"
+fi
+## Check if running
+if virsh list | grep "$domain" >/dev/null; then
+	echo "Cowardly refusing to update $domain (vm currently in use). Please stop the machine first"
+	exit 1
+fi
+trap cleanup EXIT
+
+## Restore last snapshot
+snapshot="`last_snapshot $domain`"
+if [[ $snapshot != "" ]]; then
+	# Check if the last snapshot is of today
+	if [[ "$snapshot" == "updated-`date --iso`" ]]; then
+		echo "Cowardly refusing to overwrite a already updated snapshot"
+		echo "If you still need to update the snapshot, remove the old one manually:"
+		echo ""
+		echo "    virsh snapshot-delete --domain \"$domain\" --snapshotname \"$snapshot\""
+		echo ""
+		echo "Error: snapshot $snapshot already exists"
+		exit 1
+	fi
+	echo "Restoring snapshot '$snapshot' ... "
+	virsh snapshot-revert "$domain" "$snapshot"
+fi
+## Start machine, install updates and reboot the machine
+# after reboot, we also perform a small smoke test to ensure the update didn't go horribly wrong
+echo "Booting $domain ... "
+virsh start "$domain" >/dev/null
+boot_await "$domain"
+echo "Installing updates ... "
+ssh "root@$domain" "$update_cmd"
+echo "Rebooting machine ... "
+ssh "root@$domain" reboot >/dev/null || true
+boot_await "$domain"
+sleep 10		# give the VM some time
+# Smoke tests
+echo "Running smoke tests on machine ... "
+ssh "root@$domain" uname -a >/dev/null
+ssh "root@$domain" shutdown -h now >/dev/null || true 
+## Shut the machine down and create new snapshot
+await_shutdown "$domain"
+sleep 2		# just to be sure
+echo "Create snapshots"
+virsh snapshot-create-as --domain "$domain" --name "updated-`date --iso`"
+## Delete old snapshots
+echo "Delete old snapshots (keeping $SNAPSHOTS) ... "
+remove_old_snapshots "$domain"
+snapshot="`last_snapshot $domain`"
+echo "Done. Latest snapshot: $snapshot"

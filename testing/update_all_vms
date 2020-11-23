@@ -1,0 +1,18 @@
+#!/bin/bash
+# Bash script to update all of my virtual machines
+
+VMS="jump leap15_1 leap15_2 sle15sp1 sle15sp2"
+
+echo "Updating the following virtual machines: "
+for vm in $VMS; do echo " * $vm"; done
+echo "* tumbleweed"       # separate because needs zypper dup instead of up
+
+echo "Hit return to continue"
+read
+
+for vm in $VMS; do
+	update_vm "$vm" "zypper ref && zypper up -y"
+done
+
+# Tumbleweed needs zypper dup
+update_vm "tumbleweed" "zypper ref && zypper dup -y"
