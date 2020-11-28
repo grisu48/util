@@ -9,6 +9,8 @@
 #   * Create new snapshot
 #   * Delete old snapshots, keep only the last 3
 
+# Snapshot prefix
+SN_PREFIX="updated"
 
 # Number of snapshots to keep
 SNAPSHOTS=3
@@ -17,7 +19,7 @@ TIMEOUT=300
 # get the last snapshot of the given domain
 function last_snapshot {
 	domain="$1"
-	virsh snapshot-list --name --domain "$domain" | grep "updated-" | sort | tail -n 1
+	virsh snapshot-list --name --domain "$domain" | grep "${SN_PREFIX}-" | sort | tail -n 1
 }
 
 # wait until the given machine is booted (i.e. when ssh becomes available)
@@ -46,7 +48,7 @@ function await_shutdown {
 # remove old snapshots of the given machine. Keep $SNAPSHOTS snapshots
 function remove_old_snapshots {
 	domain="$1"
-	snapshots=`virsh snapshot-list "$domain" --name | grep "updated-" | sort | head -n -$SNAPSHOTS`
+	snapshots=`virsh snapshot-list "$domain" --name | grep "${SN_PREFIX}-" | sort | head -n -$SNAPSHOTS`
 	for snapshot in $snapshots
 	do
 		virsh snapshot-delete --domain "$domain" --snapshotname "$snapshot"
@@ -87,7 +89,7 @@ trap cleanup EXIT
 snapshot="`last_snapshot $domain`"
 if [[ $snapshot != "" ]]; then
 	# Check if the last snapshot is of today
-	if [[ "$snapshot" == "updated-`date --iso`" ]]; then
+	if [[ "$snapshot" == "$SN_PREFIX-`date --iso`" ]]; then
 		echo "Cowardly refusing to overwrite a already updated snapshot"
 		echo "If you still need to update the snapshot, remove the old one manually:"
 		echo ""
@@ -98,6 +100,8 @@ if [[ $snapshot != "" ]]; then
 	fi
 	echo "Restoring snapshot '$snapshot' ... "
 	virsh snapshot-revert "$domain" "$snapshot"
+else
+	echo "No previous snapshot for restoring found."
 fi
 ## Start machine, install updates and reboot the machine
 # after reboot, we also perform a small smoke test to ensure the update didn't go horribly wrong
@@ -118,7 +122,7 @@ ssh "root@$domain" shutdown -h now >/dev/null || true
 await_shutdown "$domain"
 sleep 2		# just to be sure
 echo "Create snapshots"
-virsh snapshot-create-as --domain "$domain" --name "updated-`date --iso`"
+virsh snapshot-create-as --domain "$domain" --name "${SN_PREFIX}-`date --iso`"
 ## Delete old snapshots
 echo "Delete old snapshots (keeping $SNAPSHOTS) ... "
 remove_old_snapshots "$domain"
