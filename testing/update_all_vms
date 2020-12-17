@@ -1,20 +1,14 @@
 #!/bin/bash
 # Bash script to update all of my virtual machines
 
-BIN="~/bin/update_vm"
+export LIBVIRT_DEFAULT_URI=qemu:///system
 
-VMS="leap15_1 leap15_2 sle15sp1 sle15sp2"
+# Absolute path to the `update_vm` script (required to be executable)
+BIN="/root/bin/update_vm"
 
-echo "Updating the following virtual machines: "
-for vm in $VMS; do echo " * $vm"; done
-echo "* tumbleweed"       # separate because needs zypper dup instead of up
-
-echo "Hit return to continue"
-read
-
-for vm in $VMS; do
-	$BIN "$vm" "zypper ref && zypper patch -y"
-done
-
-# Tumbleweed needs zypper dup
+# Update virtual machines, one after each other
+$BIN "leap15_1" "zypper ref && zypper patch -y"
+$BIN "leap15_2" "zypper ref && zypper patch -y"
+$BIN "sle15sp1" "zypper ref && zypper patch -y"
+$BIN "sle15sp2" "zypper ref && zypper patch -y"
 $BIN "tumbleweed" "zypper ref && zypper dup -y"
