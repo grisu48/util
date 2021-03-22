@@ -60,7 +60,7 @@ function remove_old_snapshots {
 function cleanup() {
 	set +e
 	# ensure VM is powered off
-	if virsh list --name | grep "$domain"; then virsh destroy "$domain" || true; fi
+	if virsh list --name | grep "$domain"; then virsh destroy "$domain" >/dev/null || true; fi
 }
 
 
@@ -128,3 +128,4 @@ echo "Delete old snapshots (keeping $SNAPSHOTS) ... "
 remove_old_snapshots "$domain"
 snapshot="`last_snapshot $domain`"
 echo "Done. Latest snapshot: $snapshot"
+

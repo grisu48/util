@@ -3,12 +3,19 @@
 
 export LIBVIRT_DEFAULT_URI=qemu:///system
 
+
+# Update templates
+ZYPPER="zypper ref && zypper up -y"
+APT="apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef upgrade -y --allow-downgrades --allow-remove-essential --allow-change-held-packages"
+
+
 # Absolute path to the `update_vm` script (required to be executable)
 BIN="/root/bin/update_vm"
 
 # Update virtual machines, one after each other
-$BIN "leap15_1" "zypper ref && zypper patch -y"
-$BIN "leap15_2" "zypper ref && zypper patch -y"
-$BIN "sle15sp1" "zypper ref && zypper patch -y"
-$BIN "sle15sp2" "zypper ref && zypper patch -y"
-$BIN "tumbleweed" "zypper ref && zypper dup -y"
+$BIN "test_leap15_2" "$ZYPPER"
+$BIN "test_sle15sp1" "$ZYPPER"
+$BIN "test_sle15sp2" "$ZYPPER"
+$BIN "test_tumbleweed" "zypper ref && zypper dup -y" # Tumbleweed requires dup
+$BIN "test_debian10" "$APT"
+update_vm "test_ubuntu_bionic" "$APT"
